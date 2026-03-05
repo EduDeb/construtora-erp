@@ -13,8 +13,8 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/categories')
       .then(r => r.json())
-      .then(setCategories)
-      .catch(() => setCategories([]))
+      .then(d => { if (Array.isArray(d)) setCategories(d) })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 

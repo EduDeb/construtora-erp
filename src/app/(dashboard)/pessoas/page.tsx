@@ -14,7 +14,11 @@ export default function PeoplePage() {
   const [form, setForm] = useState({ name: '', cpf: '', role_function: '', type: 'clt', base_salary: '', phone: '', email: '' })
 
   useEffect(() => {
-    fetch('/api/employees').then(r => r.json()).then(setEmployees).finally(() => setLoading(false))
+    fetch('/api/employees')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setEmployees(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {

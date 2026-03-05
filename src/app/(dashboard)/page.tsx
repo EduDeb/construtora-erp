@@ -19,11 +19,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/dashboard/overview').then(r => r.json()),
-      fetch('/api/dashboard/cashflow').then(r => r.json()),
+      fetch('/api/dashboard/overview').then(r => r.json()).catch(() => null),
+      fetch('/api/dashboard/cashflow').then(r => r.json()).catch(() => []),
     ]).then(([overview, cf]) => {
-      setData(overview)
-      setCashflow(cf)
+      if (overview) setData(overview)
+      if (Array.isArray(cf)) setCashflow(cf)
     }).finally(() => setLoading(false))
   }, [])
 

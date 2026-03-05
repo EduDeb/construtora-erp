@@ -13,7 +13,11 @@ export default function SuppliersPage() {
   const [form, setForm] = useState({ name: '', cnpj_cpf: '', phone: '', email: '', address: '', category: '', rating: 0 })
 
   useEffect(() => {
-    fetch('/api/suppliers').then(r => r.json()).then(setSuppliers).finally(() => setLoading(false))
+    fetch('/api/suppliers')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setSuppliers(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {

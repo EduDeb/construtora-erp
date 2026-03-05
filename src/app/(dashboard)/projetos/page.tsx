@@ -13,7 +13,11 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("")
 
   useEffect(() => {
-    fetch('/api/projects').then(r => r.json()).then(setProjects).finally(() => setLoading(false))
+    fetch('/api/projects')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setProjects(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   const filtered = projects.filter(p => {

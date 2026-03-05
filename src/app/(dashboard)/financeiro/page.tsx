@@ -16,13 +16,13 @@ export default function FinancePage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/expenses').then(r => r.json()),
-      fetch('/api/revenues').then(r => r.json()),
-      fetch('/api/dashboard/cashflow').then(r => r.json()),
+      fetch('/api/expenses').then(r => r.json()).catch(() => []),
+      fetch('/api/revenues').then(r => r.json()).catch(() => []),
+      fetch('/api/dashboard/cashflow').then(r => r.json()).catch(() => []),
     ]).then(([exp, rev, cf]) => {
-      setExpenses(exp)
-      setRevenues(rev)
-      setCashflow(cf)
+      if (Array.isArray(exp)) setExpenses(exp)
+      if (Array.isArray(rev)) setRevenues(rev)
+      if (Array.isArray(cf)) setCashflow(cf)
     }).finally(() => setLoading(false))
   }, [])
 

@@ -9,7 +9,11 @@ export default function PurchasesPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/purchases').then(r => r.json()).then(setPurchases).finally(() => setLoading(false))
+    fetch('/api/purchases')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setPurchases(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   return (
