@@ -5,6 +5,7 @@ import { formatCurrency, formatDate, statusColor, statusLabel } from "@/lib/util
 import { CashFlowChart } from "@/components/charts/cashflow-chart"
 import { toast } from "sonner"
 import { Plus, X } from "lucide-react"
+import Link from "next/link"
 
 function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
   const [projects, setProjects] = useState<any[]>([])
@@ -230,7 +231,9 @@ function RevenueForm({ onClose, onSave }: { onClose: () => void; onSave: () => v
 }
 
 export default function FinancePage() {
-  const [tab, setTab] = useState('payables')
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const initialTab = searchParams?.get('tab') || 'payables'
+  const [tab, setTab] = useState(initialTab)
   const [expenses, setExpenses] = useState<any[]>([])
   const [revenues, setRevenues] = useState<any[]>([])
   const [cashflow, setCashflow] = useState<any[]>([])
@@ -361,9 +364,9 @@ export default function FinancePage() {
               ) : expenses.map((e: any) => (
                 <tr key={e.id} className="border-b hover:bg-accent/50">
                   <td className="p-4 font-medium">{e.description}</td>
-                  <td className="p-4 text-sm">{e.project?.name || <span className="text-muted-foreground">Admin</span>}</td>
+                  <td className="p-4 text-sm">{e.project ? <Link href={`/projetos/${e.project.id}`} className="text-primary hover:underline">{e.project.name}</Link> : <span className="text-muted-foreground">Admin</span>}</td>
                   <td className="p-4 text-sm">{e.category?.name || '-'}</td>
-                  <td className="p-4 text-sm">{e.supplier?.name || '-'}</td>
+                  <td className="p-4 text-sm">{e.supplier ? <Link href={`/fornecedores/${e.supplier.id}`} className="text-primary hover:underline">{e.supplier.name}</Link> : '-'}</td>
                   <td className="p-4 font-medium">{formatCurrency(Number(e.amount))}</td>
                   <td className="p-4 text-sm">{formatDate(e.due_date)}</td>
                   <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(e.payment_status)}`}>{statusLabel(e.payment_status)}</span></td>
@@ -400,7 +403,7 @@ export default function FinancePage() {
               ) : revenues.map((r: any) => (
                 <tr key={r.id} className="border-b hover:bg-accent/50">
                   <td className="p-4 font-medium">{r.description}</td>
-                  <td className="p-4 text-sm">{r.project?.name || '-'}</td>
+                  <td className="p-4 text-sm">{r.project ? <Link href={`/projetos/${r.project.id}`} className="text-primary hover:underline">{r.project.name}</Link> : '-'}</td>
                   <td className="p-4 text-sm">{r.client_name || '-'}</td>
                   <td className="p-4 font-medium">{formatCurrency(Number(r.amount))}</td>
                   <td className="p-4 text-sm">{r.installment_number && r.total_installments ? `${r.installment_number}/${r.total_installments}` : '-'}</td>

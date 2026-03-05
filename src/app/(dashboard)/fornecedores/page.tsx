@@ -91,8 +91,8 @@ export default function SuppliersPage() {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={5} className="p-8 text-center text-muted-foreground"><Truck size={32} className="mx-auto mb-2 opacity-50" />Nenhum fornecedor</td></tr>
             ) : filtered.map(s => (
-              <tr key={s.id} className="border-b hover:bg-accent/50">
-                <td className="p-4 font-medium">{s.name}</td>
+              <tr key={s.id} className="border-b hover:bg-accent/50 cursor-pointer" onClick={() => window.location.href = `/fornecedores/${s.id}`}>
+                <td className="p-4 font-medium text-primary hover:underline">{s.name}</td>
                 <td className="p-4 text-sm">{s.cnpj_cpf || '-'}</td>
                 <td className="p-4 text-sm">{s.phone || '-'}</td>
                 <td className="p-4 text-sm">{s.category || '-'}</td>

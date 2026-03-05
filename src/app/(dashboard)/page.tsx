@@ -8,7 +8,7 @@ import { DashboardOverview } from "@/lib/types"
 import { formatCurrency, statusColor, statusLabel } from "@/lib/utils"
 import {
   DollarSign, TrendingDown, TrendingUp, Wallet,
-  CreditCard, Receipt, Building2, Shield
+  CreditCard, Receipt, Building2, Shield, AlertTriangle
 } from "lucide-react"
 import Link from "next/link"
 
@@ -65,35 +65,85 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        {data.pendingAlerts > 0 && (
-          <Link href="/auditoria" className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition">
-            <Shield size={18} />
-            <span className="font-medium">{data.pendingAlerts} alerta(s) pendente(s)</span>
-          </Link>
-        )}
+        <div className="flex gap-2">
+          {data.pendingAlerts > 0 && (
+            <Link href="/auditoria" className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition">
+              <Shield size={18} />
+              <span className="font-medium">{data.pendingAlerts} alerta(s)</span>
+            </Link>
+          )}
+        </div>
       </div>
 
+      {/* KPI Cards - ALL CLICKABLE */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KpiCard title="Faturamento" value={data.totalRevenue} icon={DollarSign} />
-        <KpiCard title="Custos" value={data.totalExpenses} icon={TrendingDown} />
-        <KpiCard title="Lucro" value={data.profit} icon={TrendingUp} />
-        <KpiCard title="Saldo Caixa" value={data.cashBalance} icon={Wallet} />
-        <KpiCard title="A Pagar" value={data.payables} icon={CreditCard} />
-        <KpiCard title="A Receber" value={data.receivables} icon={Receipt} />
+        <Link href="/relatorios" className="rounded-xl border bg-card p-6 shadow-sm hover:border-primary transition cursor-pointer">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Faturamento</p>
+            <DollarSign className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold mt-2">{formatCurrency(data.totalRevenue)}</p>
+        </Link>
+
+        <Link href="/relatorios" className="rounded-xl border bg-card p-6 shadow-sm hover:border-primary transition cursor-pointer">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Custos</p>
+            <TrendingDown className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold mt-2">{formatCurrency(data.totalExpenses)}</p>
+        </Link>
+
+        <Link href="/relatorios" className="rounded-xl border bg-card p-6 shadow-sm hover:border-primary transition cursor-pointer">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Lucro</p>
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className={`text-2xl font-bold mt-2 ${data.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>{formatCurrency(data.profit)}</p>
+        </Link>
+
+        <Link href="/financeiro?tab=cashflow" className="rounded-xl border bg-card p-6 shadow-sm hover:border-primary transition cursor-pointer">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Saldo Caixa</p>
+            <Wallet className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold mt-2">{formatCurrency(data.cashBalance)}</p>
+        </Link>
+
+        <Link href="/financeiro?tab=payables" className="rounded-xl border bg-card p-6 shadow-sm hover:border-primary transition cursor-pointer">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">A Pagar</p>
+            <CreditCard className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold mt-2 text-red-500">{formatCurrency(data.payables)}</p>
+        </Link>
+
+        <Link href="/financeiro?tab=receivables" className="rounded-xl border bg-card p-6 shadow-sm hover:border-primary transition cursor-pointer">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">A Receber</p>
+            <Receipt className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold mt-2 text-green-500">{formatCurrency(data.receivables)}</p>
+        </Link>
       </div>
 
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RevenueExpenseChart data={chartData} />
         <CashFlowChart data={cashflowData} />
       </div>
 
+      {/* Active Projects */}
       <div className="rounded-xl border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Obras Ativas</h3>
           <Link href="/projetos" className="text-sm text-primary hover:underline">Ver todas →</Link>
         </div>
         {data.projects.filter(p => p.status === 'execution').length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nenhuma obra em execução</p>
+          <div className="text-center py-8 text-muted-foreground">
+            <Building2 size={40} className="mx-auto mb-2 opacity-50" />
+            <p>Nenhuma obra em execução</p>
+            <Link href="/projetos/novo" className="text-primary hover:underline text-sm">Cadastrar primeira obra →</Link>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.projects.filter(p => p.status === 'execution').map(proj => (
@@ -123,10 +173,7 @@ export default function DashboardPage() {
                       <span>{proj.completion_percentage}%</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary rounded-full h-2 transition-all"
-                        style={{ width: `${proj.completion_percentage}%` }}
-                      />
+                      <div className="bg-primary rounded-full h-2 transition-all" style={{ width: `${proj.completion_percentage}%` }} />
                     </div>
                   </div>
                 </div>
@@ -135,6 +182,22 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Quick alerts for overdue items */}
+      {data.payables > 0 && (
+        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-yellow-500" size={20} />
+            <div>
+              <p className="font-medium">Atenção: contas pendentes</p>
+              <p className="text-sm text-muted-foreground">
+                Você tem {formatCurrency(data.payables)} em contas a pagar.{' '}
+                <Link href="/financeiro?tab=payables" className="text-primary hover:underline">Ver detalhes →</Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
