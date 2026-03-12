@@ -19,8 +19,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/dashboard/overview').then(r => r.json()).catch(() => null),
-      fetch('/api/dashboard/cashflow').then(r => r.json()).catch(() => []),
+      fetch('/api/dashboard/overview').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/dashboard/cashflow').then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([overview, cf]) => {
       if (overview) setData(overview)
       if (Array.isArray(cf)) setCashflow(cf)

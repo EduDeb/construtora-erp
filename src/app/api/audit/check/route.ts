@@ -7,10 +7,10 @@ export async function POST() {
   const alerts: { alert_type: string; severity: string; title: string; description: string; related_table?: string; related_id?: string }[] = []
 
   const [
-    { data: expenses },
-    { data: revenues },
-    { data: payroll },
-    { data: projects },
+    { data: expenses, error: e1 },
+    { data: revenues, error: e2 },
+    { data: payroll, error: e3 },
+    { data: projects, error: e4 },
   ] = await Promise.all([
     supabase.from('expenses').select('*').eq('company_id', COMPANY_ID).neq('payment_status', 'cancelled'),
     supabase.from('revenues').select('*').eq('company_id', COMPANY_ID).neq('status', 'cancelled'),
@@ -18,7 +18,13 @@ export async function POST() {
     supabase.from('projects').select('*').eq('company_id', COMPANY_ID),
   ])
 
-  // 1. DUPLICATE EXPENSES: same supplier + amount + date within 3 days
+  const dbError = e1 || e2 || e3 || e4
+  if (dbError) {
+    console.error('[DB Error] POST audit/check:', dbError.message)
+    return NextResponse.json({ error: 'Erro ao carregar dados para verificação.' }, { status: 500 })
+  }
+
+  // 1. DUPLICATE EXPENSES
   const expList = expenses || []
   for (let i = 0; i < expList.length; i++) {
     for (let j = i + 1; j < expList.length; j++) {
@@ -47,7 +53,7 @@ export async function POST() {
       receiptMap[e.receipt_url].push(e.id)
     }
   }
-  for (const [url, ids] of Object.entries(receiptMap)) {
+  for (const [, ids] of Object.entries(receiptMap)) {
     if (ids.length > 1) {
       alerts.push({
         alert_type: 'DUPLICATE_RECEIPT',
@@ -67,7 +73,7 @@ export async function POST() {
     if (!payrollMap[key]) payrollMap[key] = []
     payrollMap[key].push(p)
   }
-  for (const [_, entries] of Object.entries(payrollMap)) {
+  for (const [, entries] of Object.entries(payrollMap)) {
     if (entries.length > 1) {
       alerts.push({
         alert_type: 'DOUBLE_PAYROLL',
@@ -80,7 +86,7 @@ export async function POST() {
     }
   }
 
-  // 4. AMOUNT ANOMALY: single expense > 30% of project budget
+  // 4. AMOUNT ANOMALY
   for (const e of expList) {
     if (!e.project_id) continue
     const proj = (projects || []).find(p => p.id === e.project_id)
@@ -181,7 +187,7 @@ export async function POST() {
     }
   }
 
-  // Insert new alerts (avoid duplicates by checking existing pending)
+  // Insert new alerts (avoid duplicates)
   const { data: existingAlerts } = await supabase
     .from('audit_alerts')
     .select('alert_type, related_id')

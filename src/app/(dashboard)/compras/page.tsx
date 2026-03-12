@@ -5,6 +5,7 @@ import { formatCurrency, formatDate, statusColor, statusLabel } from "@/lib/util
 import { ShoppingCart, Plus, X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
+import { Pagination } from "@/components/ui/pagination"
 
 interface PurchaseItem {
   material_name: string
@@ -202,17 +203,22 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
 
   const loadData = () => {
     setLoading(true)
-    fetch('/api/purchases')
-      .then(r => r.json())
+    fetch(`/api/purchases?page=${page}&per_page=20`)
+      .then(async r => {
+        setTotalCount(parseInt(r.headers.get('X-Total-Count') || '0'))
+        return r.json()
+      })
       .then(d => { if (Array.isArray(d)) setPurchases(d) })
-      .catch(() => {})
+      .catch(() => toast.error('Erro ao carregar pedidos'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [page])
 
   const updateStatus = async (id: string, status: string) => {
     const res = await fetch(`/api/purchases/${id}`, {
@@ -234,7 +240,7 @@ export default function PurchasesPage() {
 
   return (
     <div className="space-y-6">
-      {showForm && <PurchaseForm onClose={() => setShowForm(false)} onSave={loadData} />}
+      {showForm && <PurchaseForm onClose={() => setShowForm(false)} onSave={() => { setPage(1); loadData() }} />}
 
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Pedidos de Compra</h1>
@@ -247,7 +253,7 @@ export default function PurchasesPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-xl border bg-card p-4">
           <p className="text-sm text-muted-foreground">Total Pedidos</p>
-          <p className="text-xl font-bold mt-1">{purchases.length}</p>
+          <p className="text-xl font-bold mt-1">{totalCount}</p>
         </div>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-sm text-muted-foreground">Pendentes</p>
@@ -314,6 +320,7 @@ export default function PurchasesPage() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} totalCount={totalCount} perPage={20} onPageChange={setPage} />
     </div>
   )
 }

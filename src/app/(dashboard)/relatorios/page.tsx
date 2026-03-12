@@ -12,7 +12,7 @@ export default function ReportsPage() {
     fetch('/api/dashboard/overview')
       .then(r => r.json())
       .then(d => { if (d && d.totalRevenue !== undefined) setOverview(d) })
-      .catch(() => {})
+      .catch(() => setOverview(null))
       .finally(() => setLoading(false))
   }, [])
 
@@ -77,7 +77,8 @@ export default function ReportsPage() {
       {/* DRE por Obra */}
       <div className="rounded-xl border bg-card p-6">
         <h3 className="text-lg font-semibold mb-4">Resultado por Obra</h3>
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px]">
           <thead>
             <tr className="border-b text-left text-sm text-muted-foreground">
               <th className="p-3">Obra</th>
@@ -91,7 +92,7 @@ export default function ReportsPage() {
           </thead>
           <tbody>
             {(overview?.projects || []).map((p: any) => {
-              const margin = p.totalReceived > 0 ? ((p.profit / p.totalReceived) * 100) : 0
+              const margin = Number(p.contract_value) > 0 ? ((p.profit / Number(p.contract_value)) * 100) : 0
               return (
                 <tr key={p.id} className="border-b hover:bg-accent/50">
                   <td className="p-3 font-medium">{p.name}</td>
@@ -113,6 +114,7 @@ export default function ReportsPage() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Indicadores */}

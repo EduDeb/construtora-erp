@@ -16,7 +16,7 @@ export default function ProjectsPage() {
     fetch('/api/projects')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setProjects(d) })
-      .catch(() => {})
+      .catch(() => setProjects([]))
       .finally(() => setLoading(false))
   }, [])
 

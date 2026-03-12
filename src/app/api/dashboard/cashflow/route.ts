@@ -5,17 +5,21 @@ import { createServerClient, COMPANY_ID } from '@/lib/supabase/server'
 export async function GET() {
   const supabase = createServerClient()
 
-  const { data: transactions } = await supabase
+  const { data: transactions, error } = await supabase
     .from('transactions')
     .select('*')
     .eq('company_id', COMPANY_ID)
     .order('date', { ascending: true })
 
-  // Group by month
+  if (error) {
+    console.error('[DB Error] GET dashboard/cashflow:', error.message)
+    return NextResponse.json({ error: 'Erro ao carregar fluxo de caixa.' }, { status: 500 })
+  }
+
   const byMonth: Record<string, { income: number; expense: number }> = {}
 
   for (const t of (transactions || [])) {
-    const month = t.date.substring(0, 7) // YYYY-MM
+    const month = t.date.substring(0, 7)
     if (!byMonth[month]) byMonth[month] = { income: 0, expense: 0 }
     if (t.type === 'income') byMonth[month].income += Number(t.amount)
     else byMonth[month].expense += Number(t.amount)

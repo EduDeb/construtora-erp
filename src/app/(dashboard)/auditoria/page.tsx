@@ -5,6 +5,7 @@ import { AuditAlert, AuditLog } from "@/lib/types"
 import { formatDate, statusColor, statusLabel } from "@/lib/utils"
 import { Shield, AlertTriangle, AlertCircle, Info, CheckCircle, Eye, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import { Pagination } from "@/components/ui/pagination"
 
 const severityIcon = (s: string) => {
   switch (s) {
@@ -22,19 +23,27 @@ export default function AuditPage() {
   const [checking, setChecking] = useState(false)
   const [severityFilter, setSeverityFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('pending')
+  const [logPage, setLogPage] = useState(1)
+  const [logTotalCount, setLogTotalCount] = useState(0)
 
   const loadData = () => {
     setLoading(true)
     Promise.all([
-      fetch('/api/audit/alerts').then(r => r.json()).catch(() => []),
-      fetch('/api/audit/log?limit=100').then(r => r.json()).catch(() => []),
+      fetch('/api/audit/alerts').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`/api/audit/log?page=${logPage}&per_page=20`).then(async r => {
+        if (r.ok) {
+          setLogTotalCount(parseInt(r.headers.get('X-Total-Count') || '0'))
+          return r.json()
+        }
+        return []
+      }).catch(() => []),
     ]).then(([a, l]) => {
       if (Array.isArray(a)) setAlerts(a)
       if (Array.isArray(l)) setLogs(l)
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [logPage])
 
   const runCheck = async () => {
     setChecking(true)
@@ -60,6 +69,14 @@ export default function AuditPage() {
       toast.success(`Alerta ${statusLabel(status).toLowerCase()}`)
       setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: status as any } : a))
     }
+  }
+
+  const handleSeverityFilterChange = (value: string) => {
+    setSeverityFilter(value)
+  }
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
   }
 
   const filteredAlerts = alerts.filter(a => {
@@ -128,7 +145,7 @@ export default function AuditPage() {
       {tab === 'alerts' && (
         <>
           <div className="flex gap-3">
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            <select value={statusFilter} onChange={e => handleStatusFilterChange(e.target.value)}
               className="px-3 py-2 rounded-lg border bg-card text-sm">
               <option value="">Todos</option>
               <option value="pending">Pendentes</option>
@@ -136,12 +153,12 @@ export default function AuditPage() {
               <option value="resolved">Resolvidos</option>
               <option value="dismissed">Descartados</option>
             </select>
-            <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}
+            <select value={severityFilter} onChange={e => handleSeverityFilterChange(e.target.value)}
               className="px-3 py-2 rounded-lg border bg-card text-sm">
               <option value="">Todas severidades</option>
-              <option value="critical">🔴 Crítico</option>
-              <option value="warning">🟡 Atenção</option>
-              <option value="info">🔵 Info</option>
+              <option value="critical">Crítico</option>
+              <option value="warning">Atenção</option>
+              <option value="info">Info</option>
             </select>
           </div>
 
@@ -181,7 +198,7 @@ export default function AuditPage() {
                     </button>
                     <button onClick={() => updateAlert(alert.id, 'dismissed')}
                       className="p-2 rounded-lg hover:bg-accent text-muted-foreground" title="Descartar">
-                      ✕
+                      X
                     </button>
                   </div>
                 )}
@@ -192,42 +209,45 @@ export default function AuditPage() {
       )}
 
       {tab === 'log' && (
-        <div className="rounded-xl border bg-card">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b text-left text-sm text-muted-foreground">
-                <th className="p-4">Data</th>
-                <th className="p-4">Tabela</th>
-                <th className="p-4">Ação</th>
-                <th className="p-4">Detalhes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.length === 0 ? (
-                <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">Nenhuma alteração registrada</td></tr>
-              ) : logs.map(log => (
-                <tr key={log.id} className="border-b hover:bg-accent/50">
-                  <td className="p-4 text-sm">{formatDate(log.created_at)}</td>
-                  <td className="p-4 text-sm font-medium">{tableLabels[log.table_name] || log.table_name}</td>
-                  <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs ${log.action === 'insert' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : log.action === 'update' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>
-                      {actionLabels[log.action]}
-                    </span>
-                  </td>
-                  <td className="p-4 text-xs text-muted-foreground max-w-md truncate">
-                    {log.action === 'update' && log.old_values && log.new_values ? (
-                      <span>Campos alterados: {Object.keys(log.new_values).filter(k => JSON.stringify((log.old_values as any)?.[k]) !== JSON.stringify((log.new_values as any)?.[k]) && k !== 'updated_at').join(', ') || 'n/a'}</span>
-                    ) : log.action === 'insert' ? (
-                      <span>Novo registro criado</span>
-                    ) : (
-                      <span>Registro removido</span>
-                    )}
-                  </td>
+        <>
+          <div className="rounded-xl border bg-card overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                <tr className="border-b text-left text-sm text-muted-foreground">
+                  <th className="p-4">Data</th>
+                  <th className="p-4">Tabela</th>
+                  <th className="p-4">Ação</th>
+                  <th className="p-4">Detalhes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {logs.length === 0 ? (
+                  <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">Nenhuma alteração registrada</td></tr>
+                ) : logs.map(log => (
+                  <tr key={log.id} className="border-b hover:bg-accent/50">
+                    <td className="p-4 text-sm">{formatDate(log.created_at)}</td>
+                    <td className="p-4 text-sm font-medium">{tableLabels[log.table_name] || log.table_name}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs ${log.action === 'insert' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : log.action === 'update' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'}`}>
+                        {actionLabels[log.action]}
+                      </span>
+                    </td>
+                    <td className="p-4 text-xs text-muted-foreground max-w-md truncate">
+                      {log.action === 'update' && log.old_values && log.new_values ? (
+                        <span>Campos alterados: {Object.keys(log.new_values).filter(k => JSON.stringify((log.old_values as any)?.[k]) !== JSON.stringify((log.new_values as any)?.[k]) && k !== 'updated_at').join(', ') || 'n/a'}</span>
+                      ) : log.action === 'insert' ? (
+                        <span>Novo registro criado</span>
+                      ) : (
+                        <span>Registro removido</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={logPage} totalCount={logTotalCount} perPage={20} onPageChange={setLogPage} />
+        </>
       )}
     </div>
   )

@@ -6,16 +6,22 @@ export async function GET() {
   const supabase = createServerClient()
 
   const [
-    { data: projects },
-    { data: expenses },
-    { data: revenues },
-    { data: alerts },
+    { data: projects, error: e1 },
+    { data: expenses, error: e2 },
+    { data: revenues, error: e3 },
+    { data: alerts, error: e4 },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('company_id', COMPANY_ID),
     supabase.from('expenses').select('*').eq('company_id', COMPANY_ID),
     supabase.from('revenues').select('*').eq('company_id', COMPANY_ID),
     supabase.from('audit_alerts').select('id').eq('company_id', COMPANY_ID).eq('status', 'pending'),
   ])
+
+  const dbError = e1 || e2 || e3 || e4
+  if (dbError) {
+    console.error('[DB Error] GET dashboard/overview:', dbError.message)
+    return NextResponse.json({ error: 'Erro ao carregar dados do dashboard.' }, { status: 500 })
+  }
 
   const totalExpenses = (expenses || [])
     .filter(e => e.payment_status !== 'cancelled')
@@ -46,7 +52,6 @@ export async function GET() {
   const cashBalance = totalReceived - totalPaid
   const activeProjects = (projects || []).filter(p => p.status === 'execution').length
 
-  // Per-project summary
   const projectsSummary = (projects || []).map(p => {
     const projExpenses = (expenses || []).filter(e => e.project_id === p.id && e.payment_status !== 'cancelled')
     const projRevenues = (revenues || []).filter(r => r.project_id === p.id && r.status !== 'cancelled')

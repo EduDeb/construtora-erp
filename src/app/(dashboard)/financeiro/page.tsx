@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { formatCurrency, formatDate, statusColor, statusLabel } from "@/lib/utils"
 import { CashFlowChart } from "@/components/charts/cashflow-chart"
+import { Pagination } from "@/components/ui/pagination"
 import { toast } from "sonner"
 import { Plus, X } from "lucide-react"
 import Link from "next/link"
@@ -20,9 +21,9 @@ function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: () => v
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/projects').then(r => r.json()).catch(() => []),
-      fetch('/api/categories').then(r => r.json()).catch(() => []),
-      fetch('/api/suppliers').then(r => r.json()).catch(() => []),
+      fetch('/api/projects').then(r => r.json()).catch(() => [] as any[]),
+      fetch('/api/categories').then(r => r.json()).catch(() => [] as any[]),
+      fetch('/api/suppliers').then(r => r.json()).catch(() => [] as any[]),
     ]).then(([p, c, s]) => {
       if (Array.isArray(p)) setProjects(p)
       if (Array.isArray(c)) setCategories(c)
@@ -145,7 +146,7 @@ function RevenueForm({ onClose, onSave }: { onClose: () => void; onSave: () => v
   })
 
   useEffect(() => {
-    fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) }).catch(() => {})
+    fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) }).catch(() => setProjects([]))
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,13 +241,25 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true)
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [showRevenueForm, setShowRevenueForm] = useState(false)
+  const [expensePage, setExpensePage] = useState(1)
+  const [expenseTotalCount, setExpenseTotalCount] = useState(0)
+  const [revenuePage, setRevenuePage] = useState(1)
+  const [revenueTotalCount, setRevenueTotalCount] = useState(0)
 
   const loadData = () => {
     setLoading(true)
     Promise.all([
-      fetch('/api/expenses').then(r => r.json()).catch(() => []),
-      fetch('/api/revenues').then(r => r.json()).catch(() => []),
-      fetch('/api/dashboard/cashflow').then(r => r.json()).catch(() => []),
+      fetch(`/api/expenses?page=${expensePage}&per_page=20`).then(async r => {
+        const totalCount = parseInt(r.headers.get('X-Total-Count') || '0')
+        setExpenseTotalCount(totalCount)
+        return r.json()
+      }).catch(() => [] as any[]),
+      fetch(`/api/revenues?page=${revenuePage}&per_page=20`).then(async r => {
+        const totalCount = parseInt(r.headers.get('X-Total-Count') || '0')
+        setRevenueTotalCount(totalCount)
+        return r.json()
+      }).catch(() => [] as any[]),
+      fetch('/api/dashboard/cashflow').then(r => r.json()).catch(() => [] as any[]),
     ]).then(([exp, rev, cf]) => {
       if (Array.isArray(exp)) setExpenses(exp)
       if (Array.isArray(rev)) setRevenues(rev)
@@ -254,7 +267,7 @@ export default function FinancePage() {
     }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [expensePage, revenuePage])
 
   const markAsPaid = async (id: string) => {
     const res = await fetch(`/api/expenses/${id}`, {
@@ -342,83 +355,89 @@ export default function FinancePage() {
       </div>
 
       {tab === 'payables' && (
-        <div className="rounded-xl border bg-card overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b text-left text-sm text-muted-foreground">
-                <th className="p-4">Descrição</th>
-                <th className="p-4">Obra</th>
-                <th className="p-4">Categoria</th>
-                <th className="p-4">Fornecedor</th>
-                <th className="p-4">Valor</th>
-                <th className="p-4">Vencimento</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={8} className="p-8 text-center">Carregando...</td></tr>
-              ) : expenses.length === 0 ? (
-                <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhuma despesa registrada. Clique em "+ Despesa" para começar.</td></tr>
-              ) : expenses.map((e: any) => (
-                <tr key={e.id} className="border-b hover:bg-accent/50">
-                  <td className="p-4 font-medium">{e.description}</td>
-                  <td className="p-4 text-sm">{e.project ? <Link href={`/projetos/${e.project.id}`} className="text-primary hover:underline">{e.project.name}</Link> : <span className="text-muted-foreground">Admin</span>}</td>
-                  <td className="p-4 text-sm">{e.category?.name || '-'}</td>
-                  <td className="p-4 text-sm">{e.supplier ? <Link href={`/fornecedores/${e.supplier.id}`} className="text-primary hover:underline">{e.supplier.name}</Link> : '-'}</td>
-                  <td className="p-4 font-medium">{formatCurrency(Number(e.amount))}</td>
-                  <td className="p-4 text-sm">{formatDate(e.due_date)}</td>
-                  <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(e.payment_status)}`}>{statusLabel(e.payment_status)}</span></td>
-                  <td className="p-4">
-                    {(e.payment_status === 'pending' || e.payment_status === 'overdue') && (
-                      <button onClick={() => markAsPaid(e.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Pagar</button>
-                    )}
-                  </td>
+        <>
+          <div className="rounded-xl border bg-card overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b text-left text-sm text-muted-foreground">
+                  <th className="p-4">Descrição</th>
+                  <th className="p-4">Obra</th>
+                  <th className="p-4">Categoria</th>
+                  <th className="p-4">Fornecedor</th>
+                  <th className="p-4">Valor</th>
+                  <th className="p-4">Vencimento</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8} className="p-8 text-center">Carregando...</td></tr>
+                ) : expenses.length === 0 ? (
+                  <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhuma despesa registrada. Clique em "+ Despesa" para começar.</td></tr>
+                ) : expenses.map((e: any) => (
+                  <tr key={e.id} className="border-b hover:bg-accent/50">
+                    <td className="p-4 font-medium">{e.description}</td>
+                    <td className="p-4 text-sm">{e.project ? <Link href={`/projetos/${e.project.id}`} className="text-primary hover:underline">{e.project.name}</Link> : <span className="text-muted-foreground">Admin</span>}</td>
+                    <td className="p-4 text-sm">{e.category?.name || '-'}</td>
+                    <td className="p-4 text-sm">{e.supplier ? <Link href={`/fornecedores/${e.supplier.id}`} className="text-primary hover:underline">{e.supplier.name}</Link> : '-'}</td>
+                    <td className="p-4 font-medium">{formatCurrency(Number(e.amount))}</td>
+                    <td className="p-4 text-sm">{formatDate(e.due_date)}</td>
+                    <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(e.payment_status)}`}>{statusLabel(e.payment_status)}</span></td>
+                    <td className="p-4">
+                      {(e.payment_status === 'pending' || e.payment_status === 'overdue') && (
+                        <button onClick={() => markAsPaid(e.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Pagar</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={expensePage} totalCount={expenseTotalCount} perPage={20} onPageChange={setExpensePage} />
+        </>
       )}
 
       {tab === 'receivables' && (
-        <div className="rounded-xl border bg-card overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b text-left text-sm text-muted-foreground">
-                <th className="p-4">Descrição</th>
-                <th className="p-4">Obra</th>
-                <th className="p-4">Cliente</th>
-                <th className="p-4">Valor</th>
-                <th className="p-4">Parcela</th>
-                <th className="p-4">Data Prevista</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {revenues.length === 0 ? (
-                <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhuma receita registrada. Clique em "+ Receita" para começar.</td></tr>
-              ) : revenues.map((r: any) => (
-                <tr key={r.id} className="border-b hover:bg-accent/50">
-                  <td className="p-4 font-medium">{r.description}</td>
-                  <td className="p-4 text-sm">{r.project ? <Link href={`/projetos/${r.project.id}`} className="text-primary hover:underline">{r.project.name}</Link> : '-'}</td>
-                  <td className="p-4 text-sm">{r.client_name || '-'}</td>
-                  <td className="p-4 font-medium">{formatCurrency(Number(r.amount))}</td>
-                  <td className="p-4 text-sm">{r.installment_number && r.total_installments ? `${r.installment_number}/${r.total_installments}` : '-'}</td>
-                  <td className="p-4 text-sm">{formatDate(r.expected_date)}</td>
-                  <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(r.status)}`}>{statusLabel(r.status)}</span></td>
-                  <td className="p-4">
-                    {(r.status === 'pending' || r.status === 'overdue') && (
-                      <button onClick={() => markAsReceived(r.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Receber</button>
-                    )}
-                  </td>
+        <>
+          <div className="rounded-xl border bg-card overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b text-left text-sm text-muted-foreground">
+                  <th className="p-4">Descrição</th>
+                  <th className="p-4">Obra</th>
+                  <th className="p-4">Cliente</th>
+                  <th className="p-4">Valor</th>
+                  <th className="p-4">Parcela</th>
+                  <th className="p-4">Data Prevista</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {revenues.length === 0 ? (
+                  <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Nenhuma receita registrada. Clique em "+ Receita" para começar.</td></tr>
+                ) : revenues.map((r: any) => (
+                  <tr key={r.id} className="border-b hover:bg-accent/50">
+                    <td className="p-4 font-medium">{r.description}</td>
+                    <td className="p-4 text-sm">{r.project ? <Link href={`/projetos/${r.project.id}`} className="text-primary hover:underline">{r.project.name}</Link> : '-'}</td>
+                    <td className="p-4 text-sm">{r.client_name || '-'}</td>
+                    <td className="p-4 font-medium">{formatCurrency(Number(r.amount))}</td>
+                    <td className="p-4 text-sm">{r.installment_number && r.total_installments ? `${r.installment_number}/${r.total_installments}` : '-'}</td>
+                    <td className="p-4 text-sm">{formatDate(r.expected_date)}</td>
+                    <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(r.status)}`}>{statusLabel(r.status)}</span></td>
+                    <td className="p-4">
+                      {(r.status === 'pending' || r.status === 'overdue') && (
+                        <button onClick={() => markAsReceived(r.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Receber</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={revenuePage} totalCount={revenueTotalCount} perPage={20} onPageChange={setRevenuePage} />
+        </>
       )}
 
       {tab === 'cashflow' && (

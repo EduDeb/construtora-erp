@@ -7,10 +7,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const pid = params.id
 
   const [
-    { data: project },
-    { data: expenses },
-    { data: revenues },
-    { data: schedule },
+    { data: project, error: e1 },
+    { data: expenses, error: e2 },
+    { data: revenues, error: e3 },
+    { data: schedule, error: e4 },
   ] = await Promise.all([
     supabase.from('projects').select('*').eq('id', pid).single(),
     supabase.from('expenses').select('*, category:cost_categories(name)').eq('project_id', pid),
@@ -18,13 +18,18 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     supabase.from('project_schedule').select('*').eq('project_id', pid).order('sort_order'),
   ])
 
-  if (!project) return NextResponse.json({ error: 'Obra não encontrada' }, { status: 404 })
+  if (e1 || !project) {
+    console.error('[DB Error] GET project summary:', e1?.message)
+    return NextResponse.json({ error: 'Obra não encontrada.' }, { status: 404 })
+  }
+  if (e2 || e3 || e4) {
+    console.error('[DB Error] GET project summary data:', (e2 || e3 || e4)?.message)
+  }
 
   const totalSpent = (expenses || []).filter(e => e.payment_status !== 'cancelled').reduce((s, e) => s + Number(e.amount), 0)
   const totalReceived = (revenues || []).filter(r => r.status === 'received').reduce((s, r) => s + Number(r.amount), 0)
   const totalRevenue = (revenues || []).filter(r => r.status !== 'cancelled').reduce((s, r) => s + Number(r.amount), 0)
 
-  // Costs by category
   const costsByCategory: Record<string, number> = {}
   for (const e of (expenses || [])) {
     if (e.payment_status === 'cancelled') continue

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react"
 import { Supplier } from "@/lib/types"
 import { Truck, Plus, Star, Search } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
+import { Pagination } from "@/components/ui/pagination"
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -11,14 +13,22 @@ export default function SuppliersPage() {
   const [filter, setFilter] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', cnpj_cpf: '', phone: '', email: '', address: '', category: '', rating: 0 })
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
 
-  useEffect(() => {
-    fetch('/api/suppliers')
-      .then(r => r.json())
+  const loadData = () => {
+    setLoading(true)
+    fetch(`/api/suppliers?page=${page}&per_page=20`)
+      .then(async r => {
+        setTotalCount(parseInt(r.headers.get('X-Total-Count') || '0'))
+        return r.json()
+      })
       .then(d => { if (Array.isArray(d)) setSuppliers(d) })
-      .catch(() => {})
+      .catch(() => toast.error('Erro ao carregar fornecedores'))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [page])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,12 +36,20 @@ export default function SuppliersPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
     })
     if (res.ok) {
-      const newSupplier = await res.json()
-      setSuppliers(prev => [newSupplier, ...prev])
       setShowForm(false)
       setForm({ name: '', cnpj_cpf: '', phone: '', email: '', address: '', category: '', rating: 0 })
       toast.success('Fornecedor cadastrado!')
+      setPage(1)
+      loadData()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || 'Erro ao cadastrar fornecedor')
     }
+  }
+
+  const handleFilterChange = (value: string) => {
+    setFilter(value)
+    setPage(1)
   }
 
   const filtered = suppliers.filter(s => !filter || s.name.toLowerCase().includes(filter.toLowerCase()))
@@ -70,12 +88,12 @@ export default function SuppliersPage() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-        <input type="text" placeholder="Buscar fornecedor..." value={filter} onChange={e => setFilter(e.target.value)}
+        <input type="text" placeholder="Buscar fornecedor..." value={filter} onChange={e => handleFilterChange(e.target.value)}
           className="w-full pl-10 pr-4 py-2 rounded-lg border bg-card" />
       </div>
 
-      <div className="rounded-xl border bg-card">
-        <table className="w-full">
+      <div className="rounded-xl border bg-card overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead>
             <tr className="border-b text-left text-sm text-muted-foreground">
               <th className="p-4">Nome</th>
@@ -91,8 +109,10 @@ export default function SuppliersPage() {
             ) : filtered.length === 0 ? (
               <tr><td colSpan={5} className="p-8 text-center text-muted-foreground"><Truck size={32} className="mx-auto mb-2 opacity-50" />Nenhum fornecedor</td></tr>
             ) : filtered.map(s => (
-              <tr key={s.id} className="border-b hover:bg-accent/50 cursor-pointer" onClick={() => window.location.href = `/fornecedores/${s.id}`}>
-                <td className="p-4 font-medium text-primary hover:underline">{s.name}</td>
+              <tr key={s.id} className="border-b hover:bg-accent/50 cursor-pointer">
+                <td className="p-4 font-medium text-primary hover:underline">
+                  <Link href={`/fornecedores/${s.id}`}>{s.name}</Link>
+                </td>
                 <td className="p-4 text-sm">{s.cnpj_cpf || '-'}</td>
                 <td className="p-4 text-sm">{s.phone || '-'}</td>
                 <td className="p-4 text-sm">{s.category || '-'}</td>
@@ -108,6 +128,7 @@ export default function SuppliersPage() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} totalCount={totalCount} perPage={20} onPageChange={setPage} />
     </div>
   )
 }

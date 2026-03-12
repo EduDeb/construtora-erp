@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { CostCategory } from "@/lib/types"
-import { Settings, Plus, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { Settings } from "lucide-react"
 
 export default function SettingsPage() {
   const [categories, setCategories] = useState<CostCategory[]>([])
@@ -14,7 +13,7 @@ export default function SettingsPage() {
     fetch('/api/categories')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setCategories(d) })
-      .catch(() => {})
+      .catch(() => setCategories([]))
       .finally(() => setLoading(false))
   }, [])
 

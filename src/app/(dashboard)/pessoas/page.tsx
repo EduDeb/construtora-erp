@@ -5,6 +5,7 @@ import { Employee } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { Users, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
+import { Pagination } from "@/components/ui/pagination"
 
 export default function PeoplePage() {
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -12,14 +13,22 @@ export default function PeoplePage() {
   const [filter, setFilter] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', cpf: '', role_function: '', type: 'clt', base_salary: '', phone: '', email: '' })
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
 
-  useEffect(() => {
-    fetch('/api/employees')
-      .then(r => r.json())
+  const loadData = () => {
+    setLoading(true)
+    fetch(`/api/employees?page=${page}&per_page=20`)
+      .then(async r => {
+        setTotalCount(parseInt(r.headers.get('X-Total-Count') || '0'))
+        return r.json()
+      })
       .then(d => { if (Array.isArray(d)) setEmployees(d) })
-      .catch(() => {})
+      .catch(() => toast.error('Erro ao carregar funcionários'))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [page])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,11 +37,19 @@ export default function PeoplePage() {
       body: JSON.stringify({ ...form, base_salary: parseFloat(form.base_salary) || 0 }),
     })
     if (res.ok) {
-      const emp = await res.json()
-      setEmployees(prev => [emp, ...prev])
       setShowForm(false)
       toast.success('Funcionário cadastrado!')
+      setPage(1)
+      loadData()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || 'Erro ao cadastrar funcionário')
     }
+  }
+
+  const handleFilterChange = (value: string) => {
+    setFilter(value)
+    setPage(1)
   }
 
   const typeLabels: Record<string, string> = { clt: 'CLT', pj: 'PJ', freelancer: 'Freelancer' }
@@ -77,12 +94,12 @@ export default function PeoplePage() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-        <input placeholder="Buscar..." value={filter} onChange={e => setFilter(e.target.value)}
+        <input placeholder="Buscar..." value={filter} onChange={e => handleFilterChange(e.target.value)}
           className="w-full pl-10 pr-4 py-2 rounded-lg border bg-card" />
       </div>
 
-      <div className="rounded-xl border bg-card">
-        <table className="w-full">
+      <div className="rounded-xl border bg-card overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead>
             <tr className="border-b text-left text-sm text-muted-foreground">
               <th className="p-4">Nome</th>
@@ -109,6 +126,7 @@ export default function PeoplePage() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} totalCount={totalCount} perPage={20} onPageChange={setPage} />
     </div>
   )
 }
