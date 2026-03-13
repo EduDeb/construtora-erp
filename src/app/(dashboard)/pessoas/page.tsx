@@ -16,7 +16,7 @@ export default function PeoplePage() {
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [editEmployee, setEditEmployee] = useState<any>(null)
-  const [editForm, setEditForm] = useState({ name: '', cpf: '', role_function: '', employment_type: 'clt', base_salary: '', phone: '', email: '', active: true })
+  const [editForm, setEditForm] = useState({ name: '', cpf: '', role_function: '', type: 'clt', base_salary: '', phone: '', email: '', active: true })
 
   const loadData = () => {
     setLoading(true)
@@ -51,7 +51,7 @@ export default function PeoplePage() {
 
   const handleEdit = (emp: any) => {
     setEditEmployee(emp)
-    setEditForm({ name: emp.name || '', cpf: emp.cpf || '', role_function: emp.role_function || '', employment_type: emp.type || 'clt', base_salary: String(emp.base_salary || ''), phone: emp.phone || '', email: emp.email || '', active: emp.active !== false })
+    setEditForm({ name: emp.name || '', cpf: emp.cpf || '', role_function: emp.role_function || '', type: emp.type || 'clt', base_salary: String(emp.base_salary || ''), phone: emp.phone || '', email: emp.email || '', active: emp.active !== false })
   }
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -72,12 +72,17 @@ export default function PeoplePage() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este funcionário?')) return
-    const res = await fetch(`/api/employees/${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      toast.success('Funcionário excluído!')
-      loadData()
-    } else {
-      toast.error('Erro ao excluir funcionário')
+    try {
+      const res = await fetch(`/api/employees/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('Funcionário excluído!')
+        loadData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Erro ao excluir funcionário')
+      }
+    } catch {
+      toast.error('Erro de rede ao excluir funcionário')
     }
   }
 
@@ -106,7 +111,7 @@ export default function PeoplePage() {
                   className="px-3 py-2 rounded-lg border bg-background" />
                 <input placeholder="Função" value={editForm.role_function} onChange={e => setEditForm(p => ({ ...p, role_function: e.target.value }))}
                   className="px-3 py-2 rounded-lg border bg-background" />
-                <select value={editForm.employment_type} onChange={e => setEditForm(p => ({ ...p, employment_type: e.target.value }))}
+                <select value={editForm.type} onChange={e => setEditForm(p => ({ ...p, type: e.target.value }))}
                   className="px-3 py-2 rounded-lg border bg-background">
                   <option value="clt">CLT</option>
                   <option value="pj">PJ</option>

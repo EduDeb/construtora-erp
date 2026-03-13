@@ -82,7 +82,7 @@ export const createEmployeeSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(255),
   cpf: z.string().optional().nullable(),
   role_function: z.string().optional().nullable(),
-  employment_type: z.enum(['clt', 'pj', 'freelancer']),
+  type: z.enum(['clt', 'pj', 'freelancer']),
   base_salary: nonNegativeNumber,
   phone: z.string().optional().nullable(),
   email: z.string().email('Email inválido').optional().nullable().or(z.literal('')),

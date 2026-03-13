@@ -32,9 +32,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   const supabase = createServerClient()
 
-  const { count } = await supabase.from('payroll').select('id', { count: 'exact', head: true }).eq('employee_id', params.id)
-  if (count && count > 0) {
-    return NextResponse.json({ error: `Não é possível excluir: ${count} registro(s) de folha de pagamento vinculado(s).` }, { status: 409 })
+  // Check payroll references
+  const { count: payrollCount } = await supabase.from('payroll').select('id', { count: 'exact', head: true }).eq('employee_id', params.id)
+  if (payrollCount && payrollCount > 0) {
+    return NextResponse.json({ error: `Não é possível excluir: ${payrollCount} registro(s) de folha de pagamento vinculado(s).` }, { status: 409 })
+  }
+
+  // Check assignment references
+  const { count: assignCount } = await supabase.from('employee_assignments').select('id', { count: 'exact', head: true }).eq('employee_id', params.id)
+  if (assignCount && assignCount > 0) {
+    return NextResponse.json({ error: `Não é possível excluir: ${assignCount} alocação(ões) em obra(s) vinculada(s).` }, { status: 409 })
   }
 
   const { error } = await supabase.from('employees').delete().eq('id', params.id).eq('company_id', COMPANY_ID)
