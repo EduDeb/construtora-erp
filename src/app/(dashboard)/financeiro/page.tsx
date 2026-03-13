@@ -5,7 +5,7 @@ import { formatCurrency, formatDate, statusColor, statusLabel } from "@/lib/util
 import { CashFlowChart } from "@/components/charts/cashflow-chart"
 import { Pagination } from "@/components/ui/pagination"
 import { toast } from "sonner"
-import { Plus, X } from "lucide-react"
+import { Plus, X, Pencil, Trash2 } from "lucide-react"
 import Link from "next/link"
 
 function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
@@ -21,9 +21,9 @@ function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: () => v
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/projects').then(r => r.json()).catch(() => [] as any[]),
-      fetch('/api/categories').then(r => r.json()).catch(() => [] as any[]),
-      fetch('/api/suppliers').then(r => r.json()).catch(() => [] as any[]),
+      fetch('/api/projects').then(r => r.ok ? r.json() : []).catch(() => [] as any[]),
+      fetch('/api/categories').then(r => r.ok ? r.json() : []).catch(() => [] as any[]),
+      fetch('/api/suppliers').then(r => r.ok ? r.json() : []).catch(() => [] as any[]),
     ]).then(([p, c, s]) => {
       if (Array.isArray(p)) setProjects(p)
       if (Array.isArray(c)) setCategories(c)
@@ -34,18 +34,22 @@ function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: () => v
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const res = await fetch('/api/expenses', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form,
-        amount: parseFloat(form.amount) || 0,
-        project_id: form.project_id || null,
-        category_id: form.category_id || null,
-        supplier_id: form.supplier_id || null,
-      }),
-    })
-    if (res.ok) { toast.success('Despesa registrada!'); onSave(); onClose() }
-    else toast.error('Erro ao registrar')
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          amount: parseFloat(form.amount) || 0,
+          project_id: form.project_id || null,
+          category_id: form.category_id || null,
+          supplier_id: form.supplier_id || null,
+        }),
+      })
+      if (res.ok) { toast.success('Despesa registrada!'); onSave(); onClose() }
+      else toast.error('Erro ao registrar')
+    } catch {
+      toast.error('Erro de rede ao registrar despesa')
+    }
     setLoading(false)
   }
 
@@ -231,6 +235,266 @@ function RevenueForm({ onClose, onSave }: { onClose: () => void; onSave: () => v
   )
 }
 
+function EditExpenseForm({ expense, onClose, onSave }: { expense: any; onClose: () => void; onSave: () => void }) {
+  const [projects, setProjects] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    description: expense.description || '',
+    amount: String(expense.amount) || '',
+    date: expense.date?.split('T')[0] || '',
+    due_date: expense.due_date?.split('T')[0] || '',
+    project_id: expense.project_id || '',
+    category_id: expense.category_id || '',
+    supplier_id: expense.supplier_id || '',
+    payment_method: expense.payment_method || '',
+    payment_status: expense.payment_status || 'pending',
+    notes: expense.notes || '',
+  })
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/projects').then(r => r.ok ? r.json() : []).catch(() => [] as any[]),
+      fetch('/api/categories').then(r => r.ok ? r.json() : []).catch(() => [] as any[]),
+      fetch('/api/suppliers').then(r => r.ok ? r.json() : []).catch(() => [] as any[]),
+    ]).then(([p, c, s]) => {
+      if (Array.isArray(p)) setProjects(p)
+      if (Array.isArray(c)) setCategories(c)
+      if (Array.isArray(s)) setSuppliers(s)
+    })
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    const res = await fetch(`/api/expenses/${expense.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        amount: parseFloat(form.amount) || 0,
+        project_id: form.project_id || null,
+        category_id: form.category_id || null,
+        supplier_id: form.supplier_id || null,
+      }),
+    })
+    if (res.ok) { toast.success('Despesa atualizada!'); onSave(); onClose() }
+    else toast.error('Erro ao atualizar')
+    setLoading(false)
+  }
+
+  const set = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(p => ({ ...p, [f]: e.target.value }))
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h3 className="text-lg font-semibold">Editar Despesa</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-accent"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">Descrição *</label>
+              <input required value={form.description} onChange={set('description')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" placeholder="Ex: Concreto usinado - Fundação" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Valor (R$) *</label>
+              <input required type="number" step="0.01" value={form.amount} onChange={set('amount')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" placeholder="0,00" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Obra</label>
+              <select value={form.project_id} onChange={set('project_id')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Sem vínculo (administrativo)</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Categoria</label>
+              <select value={form.category_id} onChange={set('category_id')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Selecionar...</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Fornecedor</label>
+              <select value={form.supplier_id} onChange={set('supplier_id')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Selecionar...</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Data</label>
+              <input type="date" value={form.date} onChange={set('date')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Vencimento</label>
+              <input type="date" value={form.due_date} onChange={set('due_date')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Forma de Pagamento</label>
+              <select value={form.payment_method} onChange={set('payment_method')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Selecionar...</option>
+                <option value="pix">PIX</option>
+                <option value="boleto">Boleto</option>
+                <option value="transferencia">Transferência</option>
+                <option value="cartao">Cartão</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Status</label>
+              <select value={form.payment_status} onChange={set('payment_status')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="pending">Pendente</option>
+                <option value="paid">Pago</option>
+                <option value="overdue">Vencido</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">Observações</label>
+              <textarea value={form.notes} onChange={set('notes')} rows={2}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" disabled={loading}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50">
+              {loading ? 'Salvando...' : 'Salvar Alterações'}
+            </button>
+            <button type="button" onClick={onClose} className="px-6 py-2 border rounded-lg hover:bg-accent">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function EditRevenueForm({ revenue, onClose, onSave }: { revenue: any; onClose: () => void; onSave: () => void }) {
+  const [projects, setProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    description: revenue.description || '',
+    amount: String(revenue.amount) || '',
+    expected_date: revenue.expected_date?.split('T')[0] || '',
+    client_name: revenue.client_name || '',
+    project_id: revenue.project_id || '',
+    installment_number: revenue.installment_number ? String(revenue.installment_number) : '',
+    total_installments: revenue.total_installments ? String(revenue.total_installments) : '',
+    status: revenue.status || 'pending',
+    notes: revenue.notes || '',
+  })
+
+  useEffect(() => {
+    fetch('/api/projects').then(r => r.json()).then(d => { if (Array.isArray(d)) setProjects(d) }).catch(() => setProjects([]))
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    const res = await fetch(`/api/revenues/${revenue.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        amount: parseFloat(form.amount) || 0,
+        project_id: form.project_id || null,
+        installment_number: parseInt(form.installment_number) || null,
+        total_installments: parseInt(form.total_installments) || null,
+      }),
+    })
+    if (res.ok) { toast.success('Receita atualizada!'); onSave(); onClose() }
+    else toast.error('Erro ao atualizar')
+    setLoading(false)
+  }
+
+  const set = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(p => ({ ...p, [f]: e.target.value }))
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h3 className="text-lg font-semibold">Editar Receita</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-accent"><X size={20} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">Descrição *</label>
+              <input required value={form.description} onChange={set('description')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" placeholder="Ex: 1ª Medição - Fundação" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Valor (R$) *</label>
+              <input required type="number" step="0.01" value={form.amount} onChange={set('amount')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Cliente</label>
+              <input value={form.client_name} onChange={set('client_name')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Obra</label>
+              <select value={form.project_id} onChange={set('project_id')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Selecionar...</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Data Prevista</label>
+              <input type="date" value={form.expected_date} onChange={set('expected_date')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Parcela Nº</label>
+              <input type="number" value={form.installment_number} onChange={set('installment_number')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" placeholder="1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Total de Parcelas</label>
+              <input type="number" value={form.total_installments} onChange={set('total_installments')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" placeholder="6" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Status</label>
+              <select value={form.status} onChange={set('status')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="pending">Pendente</option>
+                <option value="received">Recebido</option>
+                <option value="overdue">Vencido</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">Observações</label>
+              <textarea value={form.notes} onChange={set('notes')} rows={2}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" disabled={loading}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50">
+              {loading ? 'Salvando...' : 'Salvar Alterações'}
+            </button>
+            <button type="button" onClick={onClose} className="px-6 py-2 border rounded-lg hover:bg-accent">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function FinancePage() {
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
   const initialTab = searchParams?.get('tab') || 'payables'
@@ -241,6 +505,8 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true)
   const [showExpenseForm, setShowExpenseForm] = useState(false)
   const [showRevenueForm, setShowRevenueForm] = useState(false)
+  const [editExpense, setEditExpense] = useState<any | null>(null)
+  const [editRevenue, setEditRevenue] = useState<any | null>(null)
   const [expensePage, setExpensePage] = useState(1)
   const [expenseTotalCount, setExpenseTotalCount] = useState(0)
   const [revenuePage, setRevenuePage] = useState(1)
@@ -285,6 +551,20 @@ export default function FinancePage() {
     if (res.ok) { toast.success('Marcado como recebido!'); loadData() }
   }
 
+  const deleteExpense = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta despesa?')) return
+    const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Despesa excluída!'); loadData() }
+    else toast.error('Erro ao excluir despesa')
+  }
+
+  const deleteRevenue = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta receita?')) return
+    const res = await fetch(`/api/revenues/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Receita excluída!'); loadData() }
+    else toast.error('Erro ao excluir receita')
+  }
+
   const tabs = [
     { key: 'payables', label: 'Contas a Pagar' },
     { key: 'receivables', label: 'Contas a Receber' },
@@ -304,6 +584,8 @@ export default function FinancePage() {
     <div className="space-y-6">
       {showExpenseForm && <ExpenseForm onClose={() => setShowExpenseForm(false)} onSave={loadData} />}
       {showRevenueForm && <RevenueForm onClose={() => setShowRevenueForm(false)} onSave={loadData} />}
+      {editExpense && <EditExpenseForm expense={editExpense} onClose={() => setEditExpense(null)} onSave={loadData} />}
+      {editRevenue && <EditRevenueForm revenue={editRevenue} onClose={() => setEditRevenue(null)} onSave={loadData} />}
 
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Financeiro</h1>
@@ -385,9 +667,17 @@ export default function FinancePage() {
                     <td className="p-4 text-sm">{formatDate(e.due_date)}</td>
                     <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(e.payment_status)}`}>{statusLabel(e.payment_status)}</span></td>
                     <td className="p-4">
-                      {(e.payment_status === 'pending' || e.payment_status === 'overdue') && (
-                        <button onClick={() => markAsPaid(e.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Pagar</button>
-                      )}
+                      <div className="flex gap-1 items-center">
+                        {(e.payment_status === 'pending' || e.payment_status === 'overdue') && (
+                          <button onClick={() => markAsPaid(e.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Pagar</button>
+                        )}
+                        <button onClick={() => setEditExpense(e)} className="p-1.5 rounded hover:bg-accent" title="Editar">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => deleteExpense(e.id)} className="p-1.5 rounded hover:bg-red-500/10 text-red-500" title="Excluir">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -427,9 +717,17 @@ export default function FinancePage() {
                     <td className="p-4 text-sm">{formatDate(r.expected_date)}</td>
                     <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(r.status)}`}>{statusLabel(r.status)}</span></td>
                     <td className="p-4">
-                      {(r.status === 'pending' || r.status === 'overdue') && (
-                        <button onClick={() => markAsReceived(r.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Receber</button>
-                      )}
+                      <div className="flex gap-1 items-center">
+                        {(r.status === 'pending' || r.status === 'overdue') && (
+                          <button onClick={() => markAsReceived(r.id)} className="text-xs px-3 py-1 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20">Receber</button>
+                        )}
+                        <button onClick={() => setEditRevenue(r)} className="p-1.5 rounded hover:bg-accent" title="Editar">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => deleteRevenue(r.id)} className="p-1.5 rounded hover:bg-red-500/10 text-red-500" title="Excluir">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

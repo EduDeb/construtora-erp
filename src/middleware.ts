@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  let res = NextResponse.next({ request: req })
+  const requestHeaders = new Headers(req.headers)
+  let res = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +16,7 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
-          res = NextResponse.next({ request: req })
+          res = NextResponse.next({ request: { headers: requestHeaders } })
           cookiesToSet.forEach(({ name, value, options }) =>
             res.cookies.set(name, value, options)
           )
@@ -26,7 +27,7 @@ export async function middleware(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const publicPaths = ['/login', '/auth/callback', '/api/health']
+  const publicPaths = ['/login', '/auth/callback', '/api/health', '/reset-password']
   const isPublic = publicPaths.some(path => req.nextUrl.pathname.startsWith(path))
 
   if (!user && !isPublic) {
@@ -38,10 +39,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url))
   }
 
-  // Pass user info in header for API routes
+  // Pass user info in REQUEST headers for API routes
   if (user && req.nextUrl.pathname.startsWith('/api/')) {
-    res.headers.set('x-user-id', user.id)
-    res.headers.set('x-user-email', user.email || '')
+    requestHeaders.set('x-user-id', user.id)
+    requestHeaders.set('x-user-email', user.email || '')
+    res = NextResponse.next({ request: { headers: requestHeaders } })
   }
 
   return res

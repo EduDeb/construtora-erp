@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 import { Project } from "@/lib/types"
 import { formatCurrency, formatDate, statusColor, statusLabel } from "@/lib/utils"
-import { Building2, Plus, Search } from "lucide-react"
+import { Building2, Plus, Search, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner"
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -12,13 +13,34 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true)
     fetch('/api/projects')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then(d => { if (Array.isArray(d)) setProjects(d) })
-      .catch(() => setProjects([]))
+      .catch(() => { setProjects([]); toast.error('Erro ao carregar obras') })
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm(`Tem certeza que deseja excluir a obra "${name}"?`)) return
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('Obra excluída!')
+        loadData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Erro ao excluir obra')
+      }
+    } catch {
+      toast.error('Erro de rede ao excluir obra')
+    }
+  }
 
   const filtered = projects.filter(p => {
     if (filter && !p.name.toLowerCase().includes(filter.toLowerCase())) return false
@@ -74,35 +96,44 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(project => (
-            <Link key={project.id} href={`/projetos/${project.id}`}
-              className="rounded-xl border bg-card p-6 hover:border-primary transition">
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="font-semibold text-lg truncate">{project.name}</h3>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor(project.status)}`}>
-                  {statusLabel(project.status)}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">{project.client_name || 'Sem cliente'}</p>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Contrato</span>
-                  <span className="font-medium">{formatCurrency(Number(project.contract_value))}</span>
+            <div key={project.id} className="rounded-xl border bg-card hover:border-primary transition flex flex-col">
+              <Link href={`/projetos/${project.id}`} className="block p-6 flex-1">
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="font-semibold text-lg truncate">{project.name}</h3>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium shrink-0 ${statusColor(project.status)}`}>
+                    {statusLabel(project.status)}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Início</span>
-                  <span>{formatDate(project.start_date)}</span>
-                </div>
-                <div className="mt-3">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span>Execução</span>
-                    <span>{project.completion_percentage}%</span>
+                <p className="text-sm text-muted-foreground mb-4">{project.client_name || 'Sem cliente'}</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Contrato</span>
+                    <span className="font-medium">{formatCurrency(Number(project.contract_value))}</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div className="bg-primary rounded-full h-2" style={{ width: `${project.completion_percentage}%` }} />
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Início</span>
+                    <span>{formatDate(project.start_date)}</span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>Execução</span>
+                      <span>{project.completion_percentage}%</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div className="bg-primary rounded-full h-2" style={{ width: `${project.completion_percentage}%` }} />
+                    </div>
                   </div>
                 </div>
+              </Link>
+              <div className="px-6 pb-4 pt-0 border-t mt-auto">
+                <button
+                  onClick={(e) => handleDelete(e, project.id, project.name)}
+                  className="flex items-center gap-1.5 text-sm text-red-500 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition mt-2"
+                >
+                  <Trash2 size={14} /> Excluir
+                </button>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

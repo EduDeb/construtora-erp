@@ -60,3 +60,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (error) return handleDbError(error, 'PATCH expense')
   return NextResponse.json(data)
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const perm = await checkWritePermission(req)
+  if (!perm.allowed) return perm.response
+
+  const supabase = createServerClient()
+  const { error } = await supabase.from('expenses').delete().eq('id', params.id).eq('company_id', COMPANY_ID)
+  if (error) return handleDbError(error, 'DELETE expense')
+  return NextResponse.json({ success: true })
+}

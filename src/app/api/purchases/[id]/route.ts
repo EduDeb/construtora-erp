@@ -83,3 +83,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (error) return handleDbError(error, 'PATCH purchase')
   return NextResponse.json(data)
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const perm = await checkWritePermission(req)
+  if (!perm.allowed) return perm.response
+
+  const supabase = createServerClient()
+
+  // Delete items first (cascade)
+  await supabase.from('purchase_items').delete().eq('purchase_order_id', params.id)
+
+  const { error } = await supabase.from('purchase_orders').delete().eq('id', params.id).eq('company_id', COMPANY_ID)
+  if (error) return handleDbError(error, 'DELETE purchase')
+  return NextResponse.json({ success: true })
+}

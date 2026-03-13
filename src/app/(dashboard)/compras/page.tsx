@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { formatCurrency, formatDate, statusColor, statusLabel } from "@/lib/utils"
-import { ShoppingCart, Plus, X, Trash2 } from "lucide-react"
+import { ShoppingCart, Plus, X, Trash2, Pencil } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { Pagination } from "@/components/ui/pagination"
@@ -29,8 +29,8 @@ function PurchaseForm({ onClose, onSave }: { onClose: () => void; onSave: () => 
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/projects').then(r => r.json()).catch(() => []),
-      fetch('/api/suppliers').then(r => r.json()).catch(() => []),
+      fetch('/api/projects').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch('/api/suppliers').then(r => r.ok ? r.json() : []).catch(() => []),
     ]).then(([p, s]) => {
       if (Array.isArray(p)) setProjects(p)
       if (Array.isArray(s)) setSuppliers(s)
@@ -49,24 +49,28 @@ function PurchaseForm({ onClose, onSave }: { onClose: () => void; onSave: () => 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const res = await fetch('/api/purchases', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form,
-        project_id: form.project_id || null,
-        supplier_id: form.supplier_id || null,
-        total_amount: totalAmount,
-        items: items.filter(i => i.material_name).map(i => ({
-          material_name: i.material_name,
-          quantity: parseFloat(i.quantity) || 1,
-          unit: i.unit,
-          unit_price: parseFloat(i.unit_price) || 0,
-          total_price: (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0),
-        })),
-      }),
-    })
-    if (res.ok) { toast.success('Pedido criado!'); onSave(); onClose() }
-    else toast.error('Erro ao criar pedido')
+    try {
+      const res = await fetch('/api/purchases', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          project_id: form.project_id || null,
+          supplier_id: form.supplier_id || null,
+          total_amount: totalAmount,
+          items: items.filter(i => i.material_name).map(i => ({
+            material_name: i.material_name,
+            quantity: parseFloat(i.quantity) || 1,
+            unit: i.unit,
+            unit_price: parseFloat(i.unit_price) || 0,
+            total_price: (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0),
+          })),
+        }),
+      })
+      if (res.ok) { toast.success('Pedido criado!'); onSave(); onClose() }
+      else toast.error('Erro ao criar pedido')
+    } catch {
+      toast.error('Erro de rede ao criar pedido')
+    }
     setLoading(false)
   }
 
@@ -199,10 +203,220 @@ function PurchaseForm({ onClose, onSave }: { onClose: () => void; onSave: () => 
   )
 }
 
+function EditPurchaseForm({ purchase, onClose, onSave }: { purchase: any; onClose: () => void; onSave: () => void }) {
+  const [projects, setProjects] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(true)
+  const [form, setForm] = useState({
+    description: '', project_id: '', supplier_id: '',
+    order_date: '', expected_delivery: '', notes: '',
+  })
+  const [items, setItems] = useState<PurchaseItem[]>([
+    { material_name: '', quantity: '1', unit: 'un', unit_price: '' }
+  ])
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/projects').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch('/api/suppliers').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`/api/purchases/${purchase.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([p, s, data]) => {
+      if (Array.isArray(p)) setProjects(p)
+      if (Array.isArray(s)) setSuppliers(s)
+      if (data) {
+        setForm({
+          description: data.description || '',
+          project_id: data.project_id || '',
+          supplier_id: data.supplier_id || '',
+          order_date: data.order_date ? data.order_date.split('T')[0] : '',
+          expected_delivery: data.expected_delivery ? data.expected_delivery.split('T')[0] : '',
+          notes: data.notes || '',
+        })
+        if (data.items && data.items.length > 0) {
+          setItems(data.items.map((item: any) => ({
+            material_name: item.material_name || item.description || '',
+            quantity: String(item.quantity || 1),
+            unit: item.unit || 'un',
+            unit_price: String(item.unit_price || 0),
+          })))
+        }
+      }
+      setLoadingData(false)
+    })
+  }, [purchase.id])
+
+  const addItem = () => setItems(prev => [...prev, { material_name: '', quantity: '1', unit: 'un', unit_price: '' }])
+  const removeItem = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i))
+  const updateItem = (i: number, field: string, value: string) =>
+    setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item))
+
+  const totalAmount = items.reduce((sum, item) => {
+    return sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)
+  }, 0)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    const res = await fetch(`/api/purchases/${purchase.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        project_id: form.project_id || null,
+        supplier_id: form.supplier_id || null,
+        total_amount: totalAmount,
+        items: items.filter(i => i.material_name).map(i => ({
+          description: i.material_name,
+          quantity: parseFloat(i.quantity) || 1,
+          unit: i.unit,
+          unit_price: parseFloat(i.unit_price) || 0,
+          total_price: (parseFloat(i.quantity) || 0) * (parseFloat(i.unit_price) || 0),
+        })),
+      }),
+    })
+    if (res.ok) { toast.success('Pedido atualizado!'); onSave(); onClose() }
+    else toast.error('Erro ao atualizar pedido')
+    setLoading(false)
+  }
+
+  const set = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(p => ({ ...p, [f]: e.target.value }))
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl border shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h3 className="text-lg font-semibold">Editar Pedido de Compra</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-accent"><X size={20} /></button>
+        </div>
+        {loadingData ? (
+          <div className="p-8 text-center text-muted-foreground">Carregando dados...</div>
+        ) : (
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">Descrição *</label>
+              <input required value={form.description} onChange={set('description')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" placeholder="Ex: Material acabamento - Lote 1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Obra</label>
+              <select value={form.project_id} onChange={set('project_id')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Selecionar...</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Fornecedor</label>
+              <select value={form.supplier_id} onChange={set('supplier_id')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background">
+                <option value="">Selecionar...</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Data do Pedido</label>
+              <input type="date" value={form.order_date} onChange={set('order_date')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Previsão de Entrega</label>
+              <input type="date" value={form.expected_delivery} onChange={set('expected_delivery')}
+                className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+            </div>
+          </div>
+
+          {/* Items */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium">Itens do Pedido</label>
+              <button type="button" onClick={addItem} className="text-xs px-3 py-1 bg-primary/10 text-primary rounded-lg hover:bg-primary/20">
+                + Adicionar Item
+              </button>
+            </div>
+            <div className="space-y-2">
+              {items.map((item, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-4">
+                    {i === 0 && <label className="text-xs text-muted-foreground">Material</label>}
+                    <input placeholder="Nome do material" value={item.material_name}
+                      onChange={e => updateItem(i, 'material_name', e.target.value)}
+                      className="w-full px-2 py-2 rounded-lg border bg-background text-sm" />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="text-xs text-muted-foreground">Qtd</label>}
+                    <input type="number" step="0.01" value={item.quantity}
+                      onChange={e => updateItem(i, 'quantity', e.target.value)}
+                      className="w-full px-2 py-2 rounded-lg border bg-background text-sm" />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="text-xs text-muted-foreground">Unidade</label>}
+                    <select value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}
+                      className="w-full px-2 py-2 rounded-lg border bg-background text-sm">
+                      <option value="un">un</option>
+                      <option value="m">m</option>
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="kg">kg</option>
+                      <option value="ton">ton</option>
+                      <option value="lata">lata</option>
+                      <option value="saco">saco</option>
+                      <option value="peça">peça</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="text-xs text-muted-foreground">Valor Unit.</label>}
+                    <input type="number" step="0.01" placeholder="0,00" value={item.unit_price}
+                      onChange={e => updateItem(i, 'unit_price', e.target.value)}
+                      className="w-full px-2 py-2 rounded-lg border bg-background text-sm" />
+                  </div>
+                  <div className="col-span-1">
+                    {i === 0 && <label className="text-xs text-muted-foreground">Total</label>}
+                    <p className="py-2 text-sm font-medium">
+                      {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))}
+                    </p>
+                  </div>
+                  <div className="col-span-1">
+                    {items.length > 1 && (
+                      <button type="button" onClick={() => removeItem(i)} className="p-2 text-red-500 hover:bg-red-500/10 rounded">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-3 pt-3 border-t">
+              <p className="text-lg font-bold">Total: {formatCurrency(totalAmount)}</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Observações</label>
+            <textarea value={form.notes} onChange={set('notes')} rows={2}
+              className="w-full mt-1 px-3 py-2 rounded-lg border bg-background" />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="submit" disabled={loading}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50">
+              {loading ? 'Salvando...' : 'Salvar Alterações'}
+            </button>
+            <button type="button" onClick={onClose} className="px-6 py-2 border rounded-lg hover:bg-accent">Cancelar</button>
+          </div>
+        </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editPurchase, setEditPurchase] = useState<any | null>(null)
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
 
@@ -234,6 +448,13 @@ export default function PurchasesPage() {
     ordered: { next: 'delivered', label: 'Confirmar Entrega' },
   }
 
+  const deletePurchase = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este pedido?')) return
+    const res = await fetch(`/api/purchases/${id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Pedido excluído!'); loadData() }
+    else toast.error('Erro ao excluir pedido')
+  }
+
   // Summary
   const totalPending = purchases.filter(p => p.status !== 'delivered' && p.status !== 'cancelled')
     .reduce((s, p) => s + Number(p.total_amount), 0)
@@ -241,6 +462,7 @@ export default function PurchasesPage() {
   return (
     <div className="space-y-6">
       {showForm && <PurchaseForm onClose={() => setShowForm(false)} onSave={() => { setPage(1); loadData() }} />}
+      {editPurchase && <EditPurchaseForm purchase={editPurchase} onClose={() => setEditPurchase(null)} onSave={() => loadData()} />}
 
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Pedidos de Compra</h1>
@@ -308,12 +530,20 @@ export default function PurchasesPage() {
                 <td className="p-4 text-sm">{formatDate(p.expected_delivery)}</td>
                 <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs ${statusColor(p.status)}`}>{statusLabel(p.status)}</span></td>
                 <td className="p-4">
-                  {statusFlow[p.status] && (
-                    <button onClick={() => updateStatus(p.id, statusFlow[p.status].next)}
-                      className="text-xs px-3 py-1 bg-primary/10 text-primary rounded-lg hover:bg-primary/20">
-                      {statusFlow[p.status].label}
+                  <div className="flex gap-1 items-center">
+                    {statusFlow[p.status] && (
+                      <button onClick={() => updateStatus(p.id, statusFlow[p.status].next)}
+                        className="text-xs px-3 py-1 bg-primary/10 text-primary rounded-lg hover:bg-primary/20">
+                        {statusFlow[p.status].label}
+                      </button>
+                    )}
+                    <button onClick={() => setEditPurchase(p)} className="p-1.5 rounded hover:bg-accent" title="Editar">
+                      <Pencil size={14} />
                     </button>
-                  )}
+                    <button onClick={() => deletePurchase(p.id)} className="p-1.5 rounded hover:bg-red-500/10 text-red-500" title="Excluir">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

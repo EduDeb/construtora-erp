@@ -25,3 +25,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (error) return handleDbError(error, 'PUT employee')
   return NextResponse.json(data)
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const perm = await checkWritePermission(req)
+  if (!perm.allowed) return perm.response
+
+  const supabase = createServerClient()
+
+  const { count } = await supabase.from('payroll').select('id', { count: 'exact', head: true }).eq('employee_id', params.id)
+  if (count && count > 0) {
+    return NextResponse.json({ error: `Não é possível excluir: ${count} registro(s) de folha de pagamento vinculado(s).` }, { status: 409 })
+  }
+
+  const { error } = await supabase.from('employees').delete().eq('id', params.id).eq('company_id', COMPANY_ID)
+  if (error) return handleDbError(error, 'DELETE employee')
+  return NextResponse.json({ success: true })
+}

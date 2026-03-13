@@ -56,6 +56,9 @@ export const createRevenueSchema = z.object({
   payment_method: z.string().optional().nullable(),
   invoice_number: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  client_name: z.string().optional().nullable(),
+  installment_number: z.number().int().positive().optional().nullable(),
+  total_installments: z.number().int().positive().optional().nullable(),
 })
 
 export const updateRevenueSchema = createRevenueSchema.partial()
@@ -147,6 +150,8 @@ export const createCategorySchema = z.object({
   type: z.enum(['direct', 'indirect']).optional(),
   description: z.string().optional().nullable(),
 })
+
+export const updateCategorySchema = createCategorySchema.partial()
 
 // ─── Audit Alerts ──────────────────────────────────────
 export const patchAlertSchema = z.object({

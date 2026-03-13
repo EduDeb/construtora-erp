@@ -70,3 +70,18 @@ export async function PUT(req: NextRequest) {
   if (error) return handleDbError(error, 'PUT daily-reports')
   return NextResponse.json(data)
 }
+
+export async function DELETE(req: NextRequest) {
+  const perm = await checkWritePermission(req)
+  if (!perm.allowed) return perm.response
+
+  const supabase = createServerClient()
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+
+  if (!id) return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })
+
+  const { error } = await supabase.from('daily_reports').delete().eq('id', id).eq('company_id', COMPANY_ID)
+  if (error) return handleDbError(error, 'DELETE daily-report')
+  return NextResponse.json({ success: true })
+}
